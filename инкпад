@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f3edf7">
+<title>InkPad</title>
+<style>
+:root{
+  --p:#6750a4;--on-p:#fff;--pc:#eaddff;--on-pc:#21005d;
+  --surface:#fef7ff;--surface-lowest:#fff;--surface-container:#f3edf7;--surface-high:#ece6f0;--surface-highest:#e6e0e9;
+  --on-surface:#1d1b20;--on-surface-variant:#49454f;--outline:#79747e;--outline-variant:#cac4d0;
+  --sc:#e8def8;--on-sc:#1d192b;--inverse:#322f35;--on-inverse:#f5eff7;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--surface);color:var(--on-surface);
+  font:400 16px/1.5 system-ui,Roboto,"Segoe UI",sans-serif;
+  display:flex;flex-direction:column;height:100dvh;overscroll-behavior:none;overflow:hidden;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button{font-family:inherit}
+.icon-btn{
+  width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:var(--on-surface-variant);
+  display:grid;place-items:center;cursor:pointer;flex:none;
+}
+.icon-btn:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.icon-btn:active{background:color-mix(in srgb,var(--on-surface) 12%,transparent)}
+.icon-btn:disabled{opacity:.38;cursor:default;background:transparent}
+.icon-btn[aria-pressed=true]{background:var(--sc);color:var(--on-sc)}
+
+/* ---------- Верхняя панель: всё для рисования и письма ---------- */
+header{
+  position:relative;z-index:3;background:var(--surface-container);border-radius:0 0 24px 24px;
+  padding:6px 8px 6px;display:grid;align-items:center;gap:2px 8px;
+  grid-template-columns:1fr auto;grid-template-areas:"left right" "tools tools";
+}
+@media (min-width:1100px){
+  header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:"left tools right"}
+}
+.left{grid-area:left;display:flex;align-items:center;gap:4px;min-width:0}
+.right{grid-area:right;display:flex;align-items:center;gap:0;position:relative;justify-content:flex-end}
+.title{
+  min-width:0;max-width:300px;padding:8px 12px;border:0;border-radius:12px;background:transparent;color:var(--on-surface);
+  font-size:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left;
+}
+.title:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.pagelbl{min-width:44px;text-align:center;font-size:14px;font-weight:500;color:var(--on-surface-variant);font-variant-numeric:tabular-nums}
+
+.tools{grid-area:tools;display:flex;align-items:center;gap:12px;overflow-x:auto;scrollbar-width:none;padding:4px 2px;min-width:0}
+.tools::-webkit-scrollbar{display:none}
+.tools>*{flex:none}
+@media (min-width:1100px){.tools{justify-content:center}}
+.vr{width:1px;height:28px;background:var(--outline-variant)}
+.seg{display:flex;border:1px solid var(--outline);border-radius:20px;overflow:hidden}
+.seg button{
+  height:40px;padding:0 14px;border:0;background:transparent;color:var(--on-surface);
+  display:flex;gap:8px;align-items:center;justify-content:center;cursor:pointer;font-size:14px;font-weight:500;
+}
+.seg button svg{width:20px;height:20px}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button[aria-pressed=true]{background:var(--sc);color:var(--on-sc)}
+@media (max-width:700px){
+  .lbl,.vr{display:none}
+  .seg button{padding:0 12px}
+  .tools{gap:8px}
+  .tools .icon-btn{width:40px;height:40px}
+  .dots{gap:6px}
+  input[type=range]{width:72px}
+}
+input[type=range]{width:96px;accent-color:var(--p)}
+.dots{display:flex;gap:10px;padding:0 4px}
+.dot{width:26px;height:26px;border-radius:50%;border:0;cursor:pointer;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--on-surface) 25%,transparent)}
+.dot[aria-pressed=true]{outline:3px solid var(--p);outline-offset:2px}
+
+.menu{
+  position:absolute;top:100%;right:0;min-width:240px;padding:8px 0;border-radius:12px;display:none;z-index:9;
+  background:var(--surface-high);box-shadow:0 2px 6px rgba(0,0,0,.25),0 8px 16px rgba(0,0,0,.15);
+}
+.menu.open{display:block}
+.menu button{display:flex;gap:16px;align-items:center;width:100%;height:48px;padding:0 16px;border:0;background:transparent;color:var(--on-surface);font-size:15px;cursor:pointer;text-align:left}
+.menu button:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.menu button svg{width:22px;height:22px;color:var(--on-surface-variant)}
+.menu button[hidden]{display:none}
+.paper-row{padding:8px 16px 12px;border-bottom:1px solid var(--outline-variant);margin-bottom:4px}
+.paper-row small{display:block;margin-bottom:8px;color:var(--on-surface-variant);font-size:12px}
+.paper-row .chips{gap:8px}
+
+/* ---------- Холст на весь остальной экран ---------- */
+main{flex:1;min-height:0;padding:8px}
+.canvas-wrap{position:relative;height:100%;overflow:hidden;border-radius:28px;background:var(--surface-high);border:1px solid var(--outline-variant)}
+.sel-bar{position:absolute;left:0;top:0;display:flex;gap:2px;padding:4px;border-radius:22px;background:var(--surface-container);box-shadow:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.18);z-index:2}
+.sel-bar[hidden]{display:none}
+.sel-bar button{height:36px;padding:0 14px;border:0;border-radius:18px;background:transparent;color:var(--on-surface);font-size:14px;font-weight:500;cursor:pointer}
+.sel-bar button:hover{background:color-mix(in srgb,var(--on-surface) 10%,transparent)}
+.sel-bar button.del{color:#d03b3b}
+.chips.wrap{flex-wrap:wrap}
+.fld{display:block;margin-top:12px;font-size:12px;color:var(--on-surface-variant)}
+.fld input,.fld textarea{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--outline);border-radius:12px;background:var(--surface-lowest);color:var(--on-surface);font:inherit;font-size:15px;box-sizing:border-box;resize:vertical}
+.fld input:focus,.fld textarea:focus{outline:2px solid var(--p);outline-offset:-1px}
+.two{display:flex;gap:10px}.two .fld{flex:1}
+.err{margin:12px 0 0;color:#d03b3b;font-size:13px;min-height:1em}
+#chartDlg{max-height:92vh;overflow:auto}
+#chartDlg .chips{margin-top:4px}
+#chartDlg small.lbl2{display:block;margin-top:14px;font-size:12px;color:var(--on-surface-variant)}
+.add-tile{position:absolute;left:0;top:0;height:48px;border:2px dashed var(--outline);border-radius:24px;background:color-mix(in srgb,var(--surface-lowest) 70%,transparent);color:var(--on-surface-variant);font-size:15px;font-weight:500;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:manipulation}
+.add-tile[hidden]{display:none}
+.add-tile:hover{background:var(--surface-lowest)}
+canvas#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair}
+.ph{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;color:var(--outline);font-size:22px;text-align:center;padding:24px}
+.ph[hidden]{display:none}
+.ph small{display:block;margin-top:12px;font-size:14px;line-height:1.5;opacity:.85}
+.zoom{
+  position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:0;z-index:2;
+  background:var(--surface-container);border-radius:24px;padding:2px;
+  box-shadow:0 1px 3px rgba(0,0,0,.25),0 2px 8px rgba(0,0,0,.12);
+}
+.zoom .icon-btn{width:40px;height:40px}
+.zlbl{min-width:52px;height:40px;border:0;border-radius:20px;background:transparent;color:var(--on-surface);font-size:13px;font-weight:500;cursor:pointer;font-variant-numeric:tabular-nums}
+.zlbl:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+
+/* ---------- Меню блокнотов ---------- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:6}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;bottom:0;left:0;width:min(88vw,360px);z-index:7;display:flex;flex-direction:column;
+  background:var(--surface-container);border-radius:0 28px 28px 0;transform:translateX(-105%);transition:transform .25s;
+  padding:calc(16px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+}
+.drawer.open{transform:none}
+.drawer h2{margin:4px 16px 12px;font-size:22px;font-weight:500}
+.btn-new{
+  height:56px;margin:0 0 12px;padding:0 20px 0 16px;border:0;border-radius:16px;background:var(--pc);color:var(--on-pc);
+  display:flex;gap:12px;align-items:center;font-size:15px;font-weight:500;cursor:pointer;
+}
+#nbList{flex:1;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.nb{display:flex;align-items:center;border-radius:20px;padding-right:4px}
+.nb.active{background:var(--sc)}
+.nb-open{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 12px;border:0;background:transparent;color:var(--on-surface);cursor:pointer;text-align:left}
+.nb canvas{width:56px;height:40px;border-radius:8px;background:var(--surface-lowest);flex:none;border:1px solid var(--outline-variant)}
+.nb-meta{min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.nb-meta b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb-meta small{color:var(--on-surface-variant);font-size:12px}
+.drawer-foot{border-top:1px solid var(--outline-variant);padding-top:8px;margin-top:8px}
+.drawer-foot button{display:flex;gap:16px;align-items:center;width:100%;height:48px;padding:0 16px;border:0;border-radius:24px;background:transparent;color:var(--on-surface);font-size:15px;cursor:pointer}
+.drawer-foot button:hover{background:color-mix(in srgb,var(--on-surface) 8%,transparent)}
+.drawer-foot svg{color:var(--on-surface-variant)}
+
+.chips{display:flex;gap:6px}
+.chip{
+  height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--outline);background:transparent;color:var(--on-surface-variant);
+  font-size:13px;font-weight:500;cursor:pointer;
+}
+.chip[aria-pressed=true]{background:var(--sc);color:var(--on-sc);border-color:transparent}
+
+/* ---------- Нижняя панель с распознанным текстом ---------- */
+.sheet{
+  position:fixed;left:50%;bottom:0;width:min(100%,640px);max-height:60dvh;z-index:5;overflow:auto;
+  transform:translate(-50%,105%);transition:transform .25s;
+  background:var(--surface-container);border-radius:28px 28px 0 0;
+  padding:12px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow:0 -2px 12px rgba(0,0,0,.2);
+}
+.sheet.open{transform:translate(-50%,0)}
+.sheet-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sheet-head h2{flex:1;margin:0;font-size:16px;font-weight:500}
+#results{display:flex;flex-direction:column;gap:8px}
+.hint{margin:0;color:var(--on-surface-variant);font-size:14px}
+.cand{
+  display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;border:0;border-radius:16px;padding:12px 16px;
+  background:var(--surface-high);color:var(--on-surface);font-size:16px;cursor:pointer;
+}
+.cand span{flex:1;word-break:break-word;white-space:pre-wrap}
+.cand svg{width:18px;height:18px;flex:none;opacity:.7;margin-top:4px}
+.cand.top{background:var(--pc);color:var(--on-pc);font-size:18px;font-weight:500}
+
+/* ---------- Настройки ---------- */
+dialog{
+  border:0;border-radius:28px;padding:24px;background:var(--surface-high);color:var(--on-surface);
+  width:min(92vw,400px);
+}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h3{margin:0 0 16px;font-size:22px;font-weight:500}
+dialog h4{margin:20px 0 8px;font-size:14px;font-weight:500;color:var(--p)}
+.row{display:flex;align-items:center;gap:12px}
+.row .grow{flex:1}
+.row+.row{margin-top:16px}
+.setting{margin-top:16px}
+.setting input[type=range]{width:100%;margin:6px 0 0}
+.setting b{font-variant-numeric:tabular-nums;min-width:2.5em;text-align:right;color:var(--p)}
+.row small{display:block;color:var(--on-surface-variant);font-size:12px;line-height:1.3}
+.switch{
+  appearance:none;-webkit-appearance:none;flex:none;width:52px;height:32px;border-radius:16px;margin:0;
+  border:2px solid var(--outline);background:var(--surface-highest);position:relative;cursor:pointer;transition:background .2s,border-color .2s;
+}
+.switch::after{
+  content:"";position:absolute;top:50%;left:8px;width:16px;height:16px;border-radius:50%;
+  background:var(--outline);transform:translateY(-50%);transition:left .2s,width .2s,height .2s,background .2s;
+}
+.switch:checked{background:var(--p);border-color:var(--p)}
+.switch:checked::after{left:20px;width:24px;height:24px;background:var(--on-p)}
+.swatches{display:flex;gap:12px;flex-wrap:wrap}
+.sw{width:36px;height:36px;border-radius:50%;border:0;cursor:pointer}
+.sw[aria-pressed=true]{outline:3px solid var(--on-surface);outline-offset:2px}
+.dlg-actions{display:flex;justify-content:flex-end;margin-top:24px}
+.btn-text{height:40px;padding:0 16px;border:0;border-radius:20px;background:transparent;color:var(--p);font-size:14px;font-weight:500;cursor:pointer}
+.btn-text:hover{background:color-mix(in srgb,var(--p) 10%,transparent)}
+
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  background:var(--inverse);color:var(--on-inverse);padding:12px 20px;border-radius:12px;font-size:14px;
+  max-width:calc(100% - 32px);transition:opacity .2s,transform .2s;z-index:20;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="left">
+    <button class="icon-btn" id="menuBtn" aria-label="Блокноты" title="Блокноты" data-icon="menu"></button>
+    <button class="title" id="title" title="Переименовать">Блокнот</button>
+  </div>
+
+  <div class="tools">
+    <div class="seg">
+      <button data-tool="pen" aria-pressed="true" title="Перо"><span data-icon="edit"></span><span class="lbl">Перо</span></button>
+      <button data-tool="eraser" aria-pressed="false" title="Ластик"><span data-icon="eraser"></span><span class="lbl">Ластик</span></button>
+      <button data-tool="lasso" aria-pressed="false" title="Лассо: выделить и передвинуть"><span data-icon="lasso"></span><span class="lbl">Лассо</span></button>
+    </div>
+    <input type="range" id="width" min="2" max="16" step="1" value="5" aria-label="Толщина" title="Толщина">
+    <div class="dots" id="dots"></div>
+    <span class="vr"></span>
+    <button class="icon-btn" id="undo" aria-label="Отменить" title="Отменить" data-icon="undo"></button>
+    <button class="icon-btn" id="redo" aria-label="Повторить" title="Повторить" data-icon="redo"></button>
+    <span class="vr"></span>
+    <button class="icon-btn" id="tRuler" aria-pressed="false" aria-label="Линейка" title="Линейка" data-icon="ruler"></button>
+    <button class="icon-btn" id="tProto" aria-pressed="false" aria-label="Транспортир" title="Транспортир" data-icon="proto"></button>
+  </div>
+
+  <div class="right">
+    <button class="icon-btn" id="prev" aria-label="Предыдущая страница" title="Предыдущая страница" data-icon="left"></button>
+    <span class="pagelbl" id="pagelbl">1/1</span>
+    <button class="icon-btn" id="next" aria-label="Следующая страница" title="Следующая страница" data-icon="right"></button>
+    <button class="icon-btn" id="addPage" aria-label="Новая страница" title="Новая страница" data-icon="add"></button>
+    <button class="icon-btn" id="more" aria-label="Ещё" title="Ещё" data-icon="more"></button>
+    <div class="menu" id="menu">
+      <div class="paper-row">
+        <small>Разлиновка страницы</small>
+        <div class="chips" id="papers">
+          <button class="chip" data-paper="blank" aria-pressed="true">Чистый</button>
+          <button class="chip" data-paper="grid" aria-pressed="false">Клетка</button>
+          <button class="chip" data-paper="lines" aria-pressed="false">Линейка</button>
+        </div>
+      </div>
+      <button id="mChart"><span data-icon="chart"></span>Диаграмма или график</button>
+      <button id="mRec"><span data-icon="text"></span>Распознать текст</button>
+      <button id="mRename"><span data-icon="edit"></span>Переименовать блокнот</button>
+      <button id="mPng"><span data-icon="download"></span>Сохранить страницу как PNG</button>
+      <button id="mClear"><span data-icon="eraser"></span>Очистить страницу</button>
+      <button id="mDelPage"><span data-icon="delete"></span>Удалить страницу</button>
+      <button id="mDelNb"><span data-icon="delete"></span>Удалить блокнот</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-wrap" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="ph" id="ph"><div>Пишите здесь пером<small>Задержите перо в конце линии или фигуры — она выровняется.<br>Заштрихуйте зигзагом — сотрётся только то, что под штриховкой.<br>Страницы идут вниз — листайте пальцем или колесом.<br>Два пальца — масштаб.</small></div></div>
+    <div class="sel-bar" id="selBar" hidden><button id="selCopy">Копия</button><button id="selDel" class="del">Удалить</button></div>
+    <button class="add-tile" id="addTile" hidden>+ Добавить страницу</button>
+    <div class="zoom" id="zoom">
+      <button class="icon-btn" id="zOut" aria-label="Уменьшить" title="Уменьшить" data-icon="minus"></button>
+      <button class="zlbl" id="zLbl" title="Сбросить масштаб">100%</button>
+      <button class="icon-btn" id="zIn" aria-label="Увеличить" title="Увеличить" data-icon="add"></button>
+    </div>
+  </div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Блокноты">
+  <h2>Блокноты</h2>
+  <button class="btn-new" id="newNb"><span data-icon="add"></span>Новый блокнот</button>
+  <div id="nbList"></div>
+  <div class="drawer-foot">
+    <button id="openSettings"><span data-icon="settings"></span>Настройки</button>
+  </div>
+</aside>
+
+<section class="sheet" id="sheet" aria-label="Распознанный текст">
+  <div class="sheet-head">
+    <h2>Текст</h2>
+    <div class="chips" id="langs">
+      <button class="chip" data-lang="ru" aria-pressed="true">RU</button>
+      <button class="chip" data-lang="en" aria-pressed="false">EN</button>
+      <button class="chip" data-lang="uk" aria-pressed="false">UK</button>
+    </div>
+    <button class="icon-btn" id="sheetClose" aria-label="Закрыть" data-icon="close"></button>
+  </div>
+  <div id="results"></div>
+</section>
+
+<dialog id="settings">
+  <h3>Настройки</h3>
+  <label class="row">
+    <span class="grow">Только стилус<small>Касания пальцем игнорируются (защита от ладони)</small></span>
+    <input type="checkbox" class="switch" id="stylus">
+  </label>
+  <label class="row">
+    <span class="grow">Распознавание фигур<small>Задержите перо в конце линии, круга, треугольника или прямоугольника — фигура выровняется</small></span>
+    <input type="checkbox" class="switch" id="shapes">
+  </label>
+  <label class="row">
+    <span class="grow">Привязка фигур к клеткам<small>На листе «в клетку» ровные фигуры ложатся строго по линиям сетки</small></span>
+    <input type="checkbox" class="switch" id="gridSnap">
+  </label>
+  <label class="row">
+    <span class="grow">Стирание штриховкой<small>Заштрихуйте зигзагом часть слова или рисунка поверх него — сотрётся только то, что под штриховкой</small></span>
+    <input type="checkbox" class="switch" id="scribble">
+  </label>
+  <div class="setting">
+    <label class="row" for="smooth">
+      <span class="grow">Сглаживание линии<small>Выше — линия ровнее и не дрожит, но немного отстаёт от пера</small></span>
+      <b id="smv">50</b>
+    </label>
+    <input type="range" id="smooth" min="0" max="100" step="5" value="50">
+  </div>
+  <div class="setting">
+    <label class="row" for="calib">
+      <span class="grow">Калибровка линейки<small>Приложите настоящую линейку к экрану: если сантиметры не совпадают — подгоните ползунок</small></span>
+      <b id="calv">100%</b>
+    </label>
+    <input type="range" id="calib" min="70" max="130" step="1" value="100">
+  </div>
+  <h4>Цвет темы</h4>
+  <div class="swatches" id="swatches"></div>
+  <div class="dlg-actions"><button class="btn-text" id="settingsClose">Готово</button></div>
+</dialog>
+
+<dialog id="chartDlg">
+  <h3>Диаграмма или график</h3>
+  <div class="chips wrap" id="chartTypes">
+    <button class="chip" data-ct="bar" aria-pressed="true">Столбцы</button>
+    <button class="chip" data-ct="line" aria-pressed="false">Линия</button>
+    <button class="chip" data-ct="pie" aria-pressed="false">Круговая</button>
+    <button class="chip" data-ct="func" aria-pressed="false">График функции</button>
+  </div>
+  <label class="fld">Заголовок (необязательно)<input id="chTitle" type="text" maxlength="60" autocomplete="off"></label>
+  <label class="fld" id="fData">Данные — по строке: «название; значение»<textarea id="chData" rows="6" spellcheck="false"></textarea></label>
+  <div id="fFunc" hidden>
+    <label class="fld">Формулы, через «;» (sin, cos, tan, sqrt, abs, ln, log, exp, pi, ^)<input id="chFn" type="text" autocomplete="off" spellcheck="false" value="sin(x)"></label>
+    <div class="two">
+      <label class="fld">x от<input id="chX0" type="text" inputmode="decimal" value="-10"></label>
+      <label class="fld">x до<input id="chX1" type="text" inputmode="decimal" value="10"></label>
+    </div>
+    <div class="two">
+      <label class="fld">y от (авто)<input id="chY0" type="text" inputmode="decimal"></label>
+      <label class="fld">y до (авто)<input id="chY1" type="text" inputmode="decimal"></label>
+    </div>
+  </div>
+  <small class="lbl2">Размер</small>
+  <div class="chips" id="chartSizes">
+    <button class="chip" data-cs="400" aria-pressed="false">Малый</button>
+    <button class="chip" data-cs="540" aria-pressed="true">Средний</button>
+    <button class="chip" data-cs="660" aria-pressed="false">Большой</button>
+  </div>
+  <p class="err" id="chErr" role="alert"></p>
+  <div class="dlg-actions"><button class="btn-text" id="chCancel">Отмена</button><button class="btn-text" id="chOk">Построить</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+// ---------- Иконки ----------
+const ICONS = {
+  undo:'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z',
+  redo:'M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z',
+  delete:'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+  download:'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
+  edit:'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+  eraser:'M16.24 3.56l4.95 4.94c.78.79.78 2.05 0 2.84L12 20.53a4.008 4.008 0 0 1-5.66 0L2.81 17c-.78-.79-.78-2.05 0-2.84l10.6-10.6c.79-.78 2.05-.78 2.83 0zM4.22 15.58l3.54 3.53c.78.79 2.04.79 2.83 0l3.53-3.53-4.95-4.95-4.95 4.95z',
+  menu:'M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z',
+  more:'M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
+  left:'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+  right:'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  add:'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  minus:'M19 13H5v-2h14v2z',
+  ruler:'M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z',
+  proto:'M2 19a10 10 0 0 1 20 0h-3a7 7 0 0 0-14 0H2zm0 1.5h20V22H2z',
+  lasso:'M3 5h2V3c-1.1 0-2 .9-2 2zm0 8h2v-2H3v2zm4 8h2v-2H7v2zM3 9h2V7H3v2zm10-6h-2v2h2V3zm6 0v2h2c0-1.1-.9-2-2-2zM5 21v-2H3c0 1.1.9 2 2 2zm-2-4h2v-2H3v2zM9 3H7v2h2V3zm2 18h2v-2h-2v2zm8-8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zm0-12h2V7h-2v2zm0 8h2v-2h-2v2zm-4 4h2v-2h-2v2zm0-16h2V3h-2v2z',
+  chart:'M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z',
+  copy:'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
+  text:'M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z',
+  close:'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+  settings:'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z'
+};
+const svg = d => `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`;
+$$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(ICONS[el.dataset.icon])));
+
+// ---------- Хранилище блокнотов (IndexedDB, запасной вариант — память) ----------
+const DB = (() => {
+  let db = null, ok = false;
+  const mem = new Map();
+  const open = () => new Promise(res => {
+    try{
+      const rq = indexedDB.open('inkpad', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('nb', { keyPath: 'id' });
+      rq.onsuccess = () => { db = rq.result; ok = true; res(true); };
+      rq.onerror = () => res(false);
+      rq.onblocked = () => res(false);
+    }catch(e){ res(false); }
+  });
+  const tx = (mode, fn) => new Promise((res, rej) => {
+    const t = db.transaction('nb', mode);
+    const r = fn(t.objectStore('nb'));
+    t.oncomplete = () => res(r && r.result);
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);
+  });
+  return {
+    init: async () => { await open(); return ok; },
+    all: async () => ok ? tx('readonly', s => s.getAll()) : Array.from(mem.values()),
+    put: async nb => { if (!ok){ mem.set(nb.id, nb); return; } return tx('readwrite', s => s.put(nb)); },
+    del: async id => { if (!ok){ mem.delete(id); return; } return tx('readwrite', s => s.delete(id)); },
+    get ok(){ return ok; }
+  };
+})();
+
+// ---------- Состояние ----------
+const mq = matchMedia('(prefers-color-scheme: dark)');
+let hue = store.get('hue', 265);
+let tool = 'pen';
+let width = store.get('width', 5);
+let penColor = store.get('color', 'auto');
+let stylusOnly = store.get('stylusOnly', false);
+let stylusChosen = store.get('stylusChosen', false);
+let shapesOn = store.get('shapes', true);
+let scribbleOn = store.get('scribble', true);
+let gridSnap = store.get('gridSnap', true);
+let smoothing = store.get('smooth', 50);
+let rulerCal = store.get('rulerCal', 100);
+const T = { ruler: store.get('tRuler', { on: false, x: null, y: null, a: null }), proto: store.get('tProto', { on: false, x: null, y: null, a: null }) };
+let toolDrag = null, guideLabel = null;
+
+let notebooks = [], cur = null, pi = 0;
+// Страницы идут одна под другой (как в GoodNotes): лист А4 PW×PH, между листами зазор GAP.
+const FONT = 'Roboto, "Segoe UI", system-ui, sans-serif';
+const PW = 720, PH = 1018, GAP = 24, SIDE = 8, TILE_H = 72;
+const pageTop = i => i * (PH + GAP);
+const nPages = () => cur ? cur.pages.length : 1;
+const docH = () => nPages() * (PH + GAP) - GAP;
+let fit = 1, sized = false, sheetBg = '#fff', tween = 0;
+let strokes = [], undoStack = [], redoStack = [], current = null;
+
+// ---------- Тема (в духе Material You: цвета строятся от выбранного оттенка, светлая/тёмная — как в системе) ----------
+const HUES = [265, 210, 160, 35, 340];
+function applyTheme(){
+  const d = mq.matches, h = hue;
+  const c = (s, l) => `hsl(${h}, ${s}%, ${l}%)`;
+  const set = (k, v) => document.documentElement.style.setProperty(k, v);
+  set('--p', c(55, d ? 78 : 40));       set('--on-p', c(50, d ? 20 : 100));
+  set('--pc', c(45, d ? 30 : 90));      set('--on-pc', c(60, d ? 90 : 15));
+  set('--surface', c(14, d ? 9 : 98));  set('--surface-lowest', c(14, d ? 7 : 100));
+  set('--surface-container', c(14, d ? 13 : 94));
+  set('--surface-high', c(14, d ? 17 : 91)); set('--surface-highest', c(14, d ? 21 : 88));
+  set('--on-surface', c(10, d ? 90 : 10));   set('--on-surface-variant', c(8, d ? 76 : 30));
+  set('--outline', c(8, d ? 60 : 50));       set('--outline-variant', c(10, d ? 28 : 80));
+  set('--sc', c(25, d ? 27 : 88));           set('--on-sc', c(30, d ? 90 : 15));
+  set('--inverse', c(10, d ? 90 : 20));      set('--on-inverse', c(10, d ? 15 : 95));
+  sheetBg = c(14, d ? 8 : 100);
+  const tc = document.querySelector('meta[name=theme-color]');
+  if (tc) tc.content = c(14, d ? 13 : 94);
+  redraw();
+  if ($('#drawer').classList.contains('open')) renderDrawer();
+}
+mq.addEventListener('change', applyTheme);
+
+const swBox = $('#swatches');
+HUES.forEach(h => {
+  const b = document.createElement('button');
+  b.className = 'sw'; b.style.background = `hsl(${h}, 60%, 50%)`;
+  b.setAttribute('aria-label', 'Цвет темы'); b.setAttribute('aria-pressed', String(h === hue));
+  b.onclick = () => {
+    hue = h; store.set('hue', h);
+    swBox.querySelectorAll('.sw').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    applyTheme();
+  };
+  swBox.append(b);
+});
+
+// ---------- Холст ----------
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let cssW = 0, cssH = 0;
+const inkColor = () => mq.matches ? '#ececf1' : '#1b1b1f';
+const colorOf = s => (s.c && s.c !== 'auto') ? s.c : inkColor();
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+function drawStroke(c, pts, w, color){
+  const n = pts.length;
+  if (!n) return;
+  c.strokeStyle = color; c.fillStyle = color; c.lineCap = 'round'; c.lineJoin = 'round';
+  const wd = p => w * (0.55 + Math.min(1, p) * 0.9);
+  if (n === 1){ c.beginPath(); c.arc(pts[0].x, pts[0].y, wd(pts[0].p) / 2, 0, Math.PI * 2); c.fill(); return; }
+  let start = pts[0];
+  for (let i = 1; i < n - 1; i++){
+    const end = mid(pts[i], pts[i + 1]);
+    c.beginPath(); c.moveTo(start.x, start.y); c.quadraticCurveTo(pts[i].x, pts[i].y, end.x, end.y);
+    c.lineWidth = wd(pts[i].p); c.stroke(); start = end;
+  }
+  c.beginPath(); c.moveTo(start.x, start.y); c.lineTo(pts[n - 1].x, pts[n - 1].y);
+  c.lineWidth = wd(pts[n - 1].p); c.stroke();
+}
+
+// Штрих, текстовая подпись или залитый многоугольник (диаграммы)
+function drawItem(c, st, color){
+  if (st.txt){
+    const b = st.pts;
+    c.save(); c.fillStyle = color; c.font = st.fs + 'px ' + FONT; c.textBaseline = 'alphabetic';
+    c.textAlign = st.al === 'l' ? 'left' : st.al === 'r' ? 'right' : 'center';
+    const x = st.al === 'l' ? b[0].x : st.al === 'r' ? b[1].x : (b[0].x + b[1].x) / 2;
+    c.fillText(st.txt, x, b[0].y + st.fs * 0.95);
+    c.restore(); return;
+  }
+  if (st.fill){
+    c.save(); c.beginPath(); st.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.globalAlpha = 0.4; c.fillStyle = st.fill; c.fill(); c.restore();
+  }
+  drawStroke(c, st.pts, st.w, color);
+}
+
+// Разлиновка: клетка (шаг 28) или линейка (шаг 36 с полем слева), рисуется в координатах листа
+function drawPaper(c, x0, y0, x1, y1, kind, dark, k){
+  if (kind !== 'grid' && kind !== 'lines') return;
+  c.save();
+  c.lineWidth = 1 / k;
+  const h = .5 / k;
+  c.strokeStyle = dark ? 'rgba(255,255,255,.11)' : 'rgba(0,0,0,.11)';
+  c.beginPath();
+  if (kind === 'grid'){
+    const st = 28;
+    for (let i = Math.floor(x0 / st); i * st <= x1; i++){ c.moveTo(i * st + h, y0); c.lineTo(i * st + h, y1); }
+    for (let i = Math.floor(y0 / st); i * st <= y1; i++){ c.moveTo(x0, i * st + h); c.lineTo(x1, i * st + h); }
+  } else {
+    const st = 36;
+    for (let i = Math.max(2, Math.floor(y0 / st)); i * st <= y1; i++){ c.moveTo(x0, i * st + h); c.lineTo(x1, i * st + h); }
+  }
+  c.stroke();
+  if (kind === 'lines' && x0 <= 64 && x1 >= 64){
+    c.beginPath();
+    c.strokeStyle = dark ? 'rgba(255,120,120,.28)' : 'rgba(220,60,60,.28)';
+    c.moveTo(64 + h, y0); c.lineTo(64 + h, y1); c.stroke();
+  }
+  c.restore();
+}
+
+// Вид: scale — масштаб, (ox, oy) — сдвиг ленты страниц в пикселях экрана
+let scale = 1, ox = 0, oy = 0, dpr = 1;
+const viewTransform = (c, d) => c.setTransform(d * scale, 0, 0, d * scale, d * ox, d * oy);
+const s2p = (sx, sy) => ({ x: (sx - ox) / scale, y: (sy - oy) / scale - pageTop(pi) }); // экран -> координаты текущей страницы
+
+// ---------- Лассо: выделить штрихи и передвигать ----------
+let sel = null;   // { list:Set, bb, dx, dy, page }
+let lasso = null; // { mode:'draw'|'move', pts, sx, sy }
+function clearSel(){ if (sel){ sel = null; $('#selBar').hidden = true; } }
+function inPoly(x, y, poly){
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const a = poly[i], b = poly[j];
+    if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+function selBox(list){
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const st of list){ const b = bboxOf(st.pts); x0 = Math.min(x0, b.x0); y0 = Math.min(y0, b.y0); x1 = Math.max(x1, b.x1); y1 = Math.max(y1, b.y1); }
+  const pad = 8; return { x0: x0 - pad, y0: y0 - pad, x1: x1 + pad, y1: y1 + pad };
+}
+function setSel(list){
+  if (!list.length){ clearSel(); return; }
+  const set = new Set(list);
+  sel = { list: set, bb: selBox(list), dx: 0, dy: 0, page: pi };
+}
+function lassoStart(e){
+  const q = toPage(e.clientX, e.clientY), m = 10 / scale;
+  if (sel && sel.page === pi && q.x >= sel.bb.x0 - m && q.x <= sel.bb.x1 + m && q.y >= sel.bb.y0 - m && q.y <= sel.bb.y1 + m){
+    lasso = { mode: 'move', sx: q.x, sy: q.y }; $('#selBar').hidden = true; return;
+  }
+  clearSel();
+  lasso = { mode: 'draw', pts: [q] };
+  redraw();
+}
+function lassoMove(e){
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+  for (const ev of (evs.length ? evs : [e])){
+    const q = toPage(ev.clientX, ev.clientY);
+    if (lasso.mode === 'move'){ sel.dx = q.x - lasso.sx; sel.dy = q.y - lasso.sy; }
+    else lasso.pts.push(q);
+  }
+  redraw();
+}
+function moveStrokes(set, dx, dy){
+  const out = new Map();
+  strokes = strokes.map(st => {
+    if (!set.has(st)) return st;
+    const n = { ...st, pts: st.pts.map(q => ({ ...q, x: q.x + dx, y: q.y + dy })) };
+    out.set(st, n); return n;
+  });
+  return out;
+}
+function lassoEnd(){
+  const l = lasso; lasso = null;
+  if (!l) return;
+  if (l.mode === 'move'){
+    if (sel && Math.hypot(sel.dx, sel.dy) * scale > 2){
+      pushHistory();
+      const map = moveStrokes(sel.list, sel.dx, sel.dy);
+      const dx = sel.dx, dy = sel.dy;
+      sel.list = new Set(Array.from(sel.list).map(st => map.get(st)));
+      sel.bb = { x0: sel.bb.x0 + dx, y0: sel.bb.y0 + dy, x1: sel.bb.x1 + dx, y1: sel.bb.y1 + dy };
+      sel.dx = 0; sel.dy = 0;
+      changed();
+    } else if (sel){ sel.dx = 0; sel.dy = 0; }
+    redraw(); return;
+  }
+  const poly = l.pts, bb = bboxOf(poly), picked = [];
+  if (Math.max(bb.w, bb.h) * scale < 10){           // касание: выбрать ближайший штрих
+    const q = poly[0], R = 14 / scale; let best = null, bd = R;
+    for (const st of strokes){
+      const d = strokeDist(st, q) - (st.txt || st.fill ? 0 : st.w / 2);
+      if (d < bd){ bd = d; best = st; }
+    }
+    if (best) picked.push(best);
+  } else {
+    for (const st of strokes){
+      if (st.txt){ const m = { x: (st.pts[0].x + st.pts[1].x) / 2, y: (st.pts[0].y + st.pts[1].y) / 2 }; if (inPoly(m.x, m.y, poly)) picked.push(st); continue; }
+      const b = bbOf(st);
+      if (b.x1 < bb.x0 || b.x0 > bb.x1 || b.y1 < bb.y0 || b.y0 > bb.y1) continue;
+      const step = Math.max(1, Math.floor(st.pts.length / 40));
+      let n = 0, tot = 0;
+      for (let i = 0; i < st.pts.length; i += step){ tot++; if (inPoly(st.pts[i].x, st.pts[i].y, poly)) n++; }
+      if (tot && n / tot >= 0.5) picked.push(st);
+    }
+  }
+  setSel(picked);
+  redraw();
+  if (!picked.length && Math.max(bb.w, bb.h) * scale >= 10) toast('Ничего не выбрано — обведите штрихи замкнутой линией');
+}
+function selDelete(){
+  if (!sel) return;
+  pushHistory(); const set = sel.list;
+  strokes = strokes.filter(st => !set.has(st)); clearSel(); changed();
+}
+function selCopy(){
+  if (!sel) return;
+  pushHistory();
+  const off = 24, copies = [];
+  for (const st of sel.list) copies.push({ ...st, pts: st.pts.map(q => ({ ...q, x: q.x + off, y: q.y + off })) });
+  strokes = strokes.concat(copies);
+  setSel(copies); changed();
+}
+$('#selDel').onclick = selDelete;
+$('#selCopy').onclick = selCopy;
+['pointerdown', 'pointerup'].forEach(t => $('#selBar').addEventListener(t, e => e.stopPropagation()));
+
+function clampView(){
+  const w = PW * scale, h = docH() * scale + TILE_H;
+  if (w + 2 * SIDE <= cssW) ox = (cssW - w) / 2; else ox = Math.min(SIDE, Math.max(cssW - w - SIDE, ox));
+  if (h + 2 * SIDE <= cssH) oy = SIDE; else oy = Math.min(SIDE, Math.max(cssH - h - SIDE, oy));
+}
+function selectPage(i){
+  i = Math.max(0, Math.min(nPages() - 1, i));
+  if (i === pi || !cur) return;
+  clearSel(); lasso = null;
+  syncOut(); pi = i; strokes = cur.pages[i].strokes;
+}
+function syncActivePage(){ // «текущая» — страница в центре экрана
+  if (!cur || activeId !== null || current) return;
+  const i = Math.floor(((cssH / 2 - oy) / scale) / (PH + GAP));
+  if (Math.max(0, Math.min(nPages() - 1, i)) !== pi){ selectPage(i); updateUI(); }
+}
+function targetOy(i){
+  return PH * scale <= cssH - 2 * SIDE ? cssH / 2 - (pageTop(i) + PH / 2) * scale : SIDE - pageTop(i) * scale;
+}
+function stopMotion(){ if (tween){ cancelAnimationFrame(tween); tween = 0; } }
+function animateY(target){
+  stopMotion();
+  const from = oy, t0 = performance.now();
+  const step = t => {
+    const k = Math.min(1, (t - t0) / 200), e = 1 - Math.pow(1 - k, 3);
+    oy = from + (target - from) * e; clampView(); syncActivePage(); redraw();
+    tween = k < 1 ? requestAnimationFrame(step) : 0;
+  };
+  tween = requestAnimationFrame(step);
+}
+function scrollToPage(i, anim){
+  stopMotion();
+  if (anim) animateY(targetOy(i)); else { oy = targetOy(i); clampView(); redraw(); }
+}
+function fling(vx, vy){
+  stopMotion();
+  let last = performance.now();
+  const step = t => {
+    const dt = Math.min(32, t - last); last = t;
+    const f = Math.pow(0.94, dt / 16); vx *= f; vy *= f;
+    const x0 = ox, y0 = oy; ox += vx * dt; oy += vy * dt;
+    clampView(); syncActivePage(); redraw();
+    tween = (Math.abs(vx) > 0.03 || Math.abs(vy) > 0.03) && (ox !== x0 || oy !== y0) ? requestAnimationFrame(step) : 0;
+  };
+  tween = requestAnimationFrame(step);
+}
+
+function redraw(){
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const dark = mq.matches, paper = cur ? cur.paper : 'blank';
+  if (cur){
+    const h = PH + GAP;
+    const a = Math.max(0, Math.floor((-oy / scale) / h)), b = Math.min(nPages() - 1, Math.floor(((cssH - oy) / scale) / h));
+    for (let i = a; i <= b; i++){
+      viewTransform(ctx, dpr); ctx.translate(0, pageTop(i));
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.22)'; ctx.shadowBlur = 8 * dpr; ctx.shadowOffsetY = 1.5 * dpr;
+      ctx.fillStyle = sheetBg; ctx.fillRect(0, 0, PW, PH);
+      ctx.shadowColor = 'transparent';
+      ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip();
+      const top = pageTop(i);
+      drawPaper(ctx, Math.max(0, -ox / scale), Math.max(0, -oy / scale - top), Math.min(PW, (cssW - ox) / scale), Math.min(PH, (cssH - oy) / scale - top), paper, dark, scale);
+      (i === pi ? strokes : cur.pages[i].strokes).forEach(s => {
+        if (sel && i === pi && sel.list.has(s)){ ctx.save(); ctx.translate(sel.dx, sel.dy); drawItem(ctx, s, colorOf(s)); ctx.restore(); }
+        else drawItem(ctx, s, colorOf(s));
+      });
+      if (current && i === pi) drawStroke(ctx, current.pts, current.w, penColor === 'auto' ? inkColor() : penColor);
+      ctx.restore();
+      if (i === pi && (sel || (lasso && lasso.mode === 'draw'))){
+        const acc = getComputedStyle(document.documentElement).getPropertyValue('--p') || '#6750a4';
+        ctx.save(); ctx.strokeStyle = acc; ctx.lineWidth = 1.6 / scale; ctx.setLineDash([7 / scale, 5 / scale]); ctx.lineJoin = 'round';
+        if (lasso && lasso.mode === 'draw' && lasso.pts.length > 1){
+          ctx.beginPath(); lasso.pts.forEach((q, k) => k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
+          ctx.globalAlpha = .9; ctx.stroke(); ctx.globalAlpha = .08; ctx.fillStyle = acc; ctx.fill();
+        }
+        if (sel){
+          const b = sel.bb; ctx.globalAlpha = 1;
+          ctx.strokeRect(b.x0 + sel.dx, b.y0 + sel.dy, b.x1 - b.x0, b.y1 - b.y0);
+        }
+        ctx.restore();
+      }
+    }
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawTools();
+  $('#ph').hidden = !!current || !cur || strokes.length > 0 || cur.pages.some(pg => pg.strokes.length > 0);
+  $('#zLbl').textContent = Math.round(scale / fit * 100) + '%';
+  const bar = $('#selBar');
+  if (sel && !(lasso && lasso.mode === 'move')){
+    const b = sel.bb, cx = ox + ((b.x0 + b.x1) / 2) * scale, ty = oy + (pageTop(sel.page) + b.y0) * scale;
+    bar.hidden = false;
+    const w = bar.offsetWidth || 160, y = ty - 52 < 4 ? oy + (pageTop(sel.page) + b.y1) * scale + 10 : ty - 52;
+    bar.style.transform = `translate(${Math.max(4, Math.min(cssW - w - 4, cx - w / 2))}px, ${Math.max(4, Math.min(cssH - 48, y))}px)`;
+  } else bar.hidden = true;
+  const tile = $('#addTile');
+  if (cur){
+    const w = Math.max(160, Math.min(PW * scale, 320)), y = oy + docH() * scale + 14;
+    tile.hidden = y > cssH || y + 48 < 0;
+    tile.style.width = w + 'px';
+    tile.style.transform = `translate(${ox + PW * scale / 2 - w / 2}px, ${y}px)`;
+  } else tile.hidden = true;
+}
+
+function resize(){
+  const r = cv.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  cssW = r.width; cssH = r.height;
+  clampTools();
+  cv.width = Math.max(1, Math.round(r.width * dpr));
+  cv.height = Math.max(1, Math.round(r.height * dpr));
+  const nf = Math.max(0.05, (cssW - 2 * SIDE) / PW);
+  if (!sized){ sized = true; fit = nf; scale = nf; oy = cur ? targetOy(pi) : SIDE; }
+  else { const wy = -oy / scale; scale = scale / fit * nf; fit = nf; oy = -wy * scale; }
+  clampView(); redraw();
+}
+new ResizeObserver(resize).observe($('#wrap'));
+
+// ---------- Сохранение ----------
+let saveTimer = null;
+function syncOut(){ if (cur) cur.pages[pi].strokes = strokes; }
+async function saveNow(){
+  clearTimeout(saveTimer); saveTimer = null;
+  if (!cur) return;
+  syncOut();
+  try{ await DB.put(cur); }catch(e){ toast('Не удалось сохранить блокнот'); }
+}
+function changed(){
+  if (cur) cur.updated = Date.now();
+  syncOut(); updateUI(); redraw();
+  clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 500);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+window.addEventListener('pagehide', saveNow);
+
+// ---------- Интерфейс и история ----------
+function updateUI(){
+  $('#title').textContent = cur ? cur.title : 'Блокнот';
+  const n = cur ? cur.pages.length : 1;
+  $('#pagelbl').textContent = (pi + 1) + '/' + n;
+  $('#prev').disabled = pi <= 0;
+  $('#next').disabled = pi >= n - 1;
+  $('#undo').disabled = !undoStack.length;
+  $('#redo').disabled = !redoStack.length;
+  $('#mDelPage').hidden = n < 2;
+  const paper = (cur && cur.paper) || 'blank';
+  $$('[data-paper]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.paper === paper)));
+}
+$$('[data-paper]').forEach(b => b.onclick = e => {
+  e.stopPropagation();
+  if (!cur) return;
+  cur.paper = b.dataset.paper; store.set('paper', cur.paper);
+  changed();
+});
+function pushHistory(){ undoStack.push({ p: pi, s: strokes.slice() }); redoStack.length = 0; }
+function ensureVisible(i){
+  const top = oy + pageTop(i) * scale, bot = top + PH * scale;
+  if (bot < 40 || top > cssH - 40) scrollToPage(i, true);
+}
+function stepHistory(from, to){
+  if (!from.length) return;
+  const e = from.pop();
+  clearSel(); lasso = null;
+  selectPage(e.p);
+  to.push({ p: e.p, s: strokes });
+  strokes = e.s; changed(); ensureVisible(e.p);
+}
+$('#undo').onclick = () => stepHistory(undoStack, redoStack);
+$('#redo').onclick = () => stepHistory(redoStack, undoStack);
+
+// Старые блокноты (бесконечный лист) вписываем в страницу А4
+function migrate(nb){
+  if (nb.v >= 2) return;
+  nb.v = 2;
+  for (const pg of nb.pages){
+    if (!pg.strokes.length) continue;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const st of pg.strokes){ const q = bboxOf(st.pts); x0 = Math.min(x0, q.x0); y0 = Math.min(y0, q.y0); x1 = Math.max(x1, q.x1); y1 = Math.max(y1, q.y1); }
+    if (x0 >= 0 && y0 >= 0 && x1 <= PW && y1 <= PH) continue;
+    const m = 16, k = Math.min(1, (PW - 2 * m) / Math.max(1, x1 - x0), (PH - 2 * m) / Math.max(1, y1 - y0));
+    pg.strokes = pg.strokes.map(st => ({ ...st, w: st.w * k, pts: st.pts.map(q => ({ ...q, x: (q.x - x0) * k + m, y: (q.y - y0) * k + m })) }));
+  }
+}
+function loadPage(){
+  migrate(cur);
+  pi = Math.max(0, Math.min(pi, cur.pages.length - 1));
+  strokes = cur.pages[pi].strokes;
+  undoStack = []; redoStack = []; current = null; stopMotion(); clearSel(); lasso = null;
+  scale = fit; ox = 0; oy = targetOy(pi); clampView();
+  closeSheet(); updateUI(); redraw();
+}
+
+// ---------- Блокноты и страницы ----------
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+async function createNotebook(){
+  await saveNow();
+  const nb = { id: newId(), title: 'Блокнот ' + (notebooks.length + 1), created: Date.now(), updated: Date.now(), paper: store.get('paper', 'blank'), pages: [{ strokes: [] }], v: 2 };
+  notebooks.push(nb);
+  cur = nb; pi = 0; store.set('last', nb.id);
+  loadPage();
+  try{ await DB.put(nb); }catch(e){ toast('Не удалось сохранить блокнот'); }
+}
+async function openNotebook(id){
+  const nb = notebooks.find(x => x.id === id);
+  if (!nb || nb === cur) return;
+  await saveNow();
+  cur = nb; pi = 0; store.set('last', id);
+  loadPage();
+}
+async function removeNotebook(nb){
+  if (!confirm('Удалить «' + nb.title + '» вместе со всеми страницами?')) return;
+  try{ await DB.del(nb.id); }catch(e){}
+  notebooks = notebooks.filter(x => x !== nb);
+  if (nb === cur){
+    cur = null;
+    if (notebooks.length){
+      const next = notebooks.slice().sort((a, b) => b.updated - a.updated)[0];
+      cur = next; pi = 0; store.set('last', next.id); loadPage();
+    } else { await createNotebook(); }
+  }
+  renderDrawer();
+}
+function goPage(n){
+  if (!cur || n < 0 || n >= cur.pages.length) return;
+  selectPage(n); updateUI(); scrollToPage(n, true);
+}
+$('#prev').onclick = () => goPage(pi - 1);
+$('#next').onclick = () => goPage(pi + 1);
+function addPageEnd(){
+  if (!cur) return;
+  syncOut(); cur.pages.push({ strokes: [] });
+  selectPage(cur.pages.length - 1); changed(); scrollToPage(pi, true);
+  toast('Страница ' + (pi + 1));
+}
+$('#addPage').onclick = addPageEnd;
+$('#addTile').onclick = addPageEnd;
+
+// ---------- Меню блокнотов (боковая панель) ----------
+const fmtDate = ts => new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function drawThumb(c, list){
+  const g = c.getContext('2d'); if (!g) return;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  list.forEach(s => s.pts.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }));
+  if (x0 > x1) return;
+  const W = c.width, H = c.height, pad = 8;
+  const k = Math.min((W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
+  const ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
+  g.lineWidth = 2.5; g.lineCap = 'round'; g.lineJoin = 'round';
+  list.forEach(s => {
+    if (s.txt) return;
+    g.strokeStyle = colorOf(s); g.beginPath();
+    s.pts.forEach((p, i) => i ? g.lineTo(p.x * k + ox, p.y * k + oy) : g.moveTo(p.x * k + ox, p.y * k + oy));
+    if (s.pts.length === 1) g.lineTo(s.pts[0].x * k + ox + .1, s.pts[0].y * k + oy);
+    g.stroke();
+  });
+}
+function renderDrawer(){
+  syncOut();
+  const box = $('#nbList'); box.textContent = '';
+  notebooks.slice().sort((a, b) => b.updated - a.updated).forEach(nb => {
+    const row = document.createElement('div'); row.className = 'nb' + (nb === cur ? ' active' : '');
+    const open = document.createElement('button'); open.className = 'nb-open';
+    const th = document.createElement('canvas'); th.width = 112; th.height = 80;
+    drawThumb(th, nb.pages[0].strokes);
+    const meta = document.createElement('span'); meta.className = 'nb-meta';
+    const t = document.createElement('b'); t.textContent = nb.title;
